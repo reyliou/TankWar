@@ -1,4 +1,5 @@
 target/
 *.class
 .vscode/
-.idea/
+.idea/jdk-21.0.10_windows-x64_bin.zip
+jdk-21/

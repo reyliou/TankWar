@@ -1,0 +1,13 @@
+砲彈裝擊物體:Explosion_A~H
+砲彈飛行的尾流動畫:FlameA~H
+開火動畫Flash_A_01~05
+砲彈圖片:Granade_Shell
+準星:Black+
+
+道具效果:
+thumb_item_Booster:車體加速
+thumb_item_EMP:砲彈轉換成EMP(先暫時不用做)
+thumb_item_Fix_1:修復
+thumb_item_Fix_SmokeGrenade:發射煙霧彈
+thumb_item_Shield:獲得防護罩
+thumb_item_Speed:開火速度增加

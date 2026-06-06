@@ -11,6 +11,9 @@ public class ServerMessage {
     public String winnerId;
     public String winnerTeam;
     public String message;
+    public String chatSender; // 新增：聊天發送者
+    public String chatText;   // 新增：聊天內容
+    public List<List<int[]>> aiPaths; // 新增：AI 尋路路徑 (Debug 用)
     public List<PlayerState> players;
     public List<BulletState> bullets;
     public List<WallState> walls;
@@ -21,6 +24,14 @@ public class ServerMessage {
         ServerMessage m = new ServerMessage();
         m.type = "welcome";
         m.playerId = playerId;
+        return m;
+    }
+
+    public static ServerMessage chat(String sender, String text) {
+        ServerMessage m = new ServerMessage();
+        m.type = "chat";
+        m.chatSender = sender;
+        m.chatText = text;
         return m;
     }
 

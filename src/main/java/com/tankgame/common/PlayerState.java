@@ -5,7 +5,8 @@ public class PlayerState {
     public String name;
     public double x;
     public double y;
-    public double angle;
+    public double angle; // 砲塔角度 (瞄準方向)
+    public double bodyAngle; // 車身角度 (移動方向)
     public int hp;
     public int maxHp;
     public int score;

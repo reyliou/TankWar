@@ -175,7 +175,7 @@ Shot2.png      命中特效
 heal.png       補血道具
 boost.png      加速道具
 rapid.png      快速射擊道具
-+Black.png     補血道具備用圖
++Black.png     瞄準鏡準星
 tank_scout_body.png    輕型偵查車車身
 tank_scout_head.png    輕型偵查車砲塔
 tank_heavy_body.png    重型坦克車身

@@ -89,6 +89,19 @@ public class NetworkManager {
         sendJoinRoom();
     }
 
+    public void sendChat(String text) {
+        if (out == null || playerId == null || text == null || text.isBlank()) {
+            return;
+        }
+        ClientInputMessage msg = new ClientInputMessage();
+        msg.type = "chat";
+        msg.playerId = playerId;
+        msg.playerName = playerName;
+        msg.roomCode = roomCode;
+        msg.text = text;
+        out.println(GSON.toJson(msg));
+    }
+
     private void sendJoinRoom() {
         if (out == null || playerId == null) {
             return;

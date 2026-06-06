@@ -12,6 +12,7 @@ $gson = Join-Path $lib "gson-2.11.0.jar"
 $javafxBase = Join-Path $lib "javafx-base-21.0.2-win.jar"
 $javafxControls = Join-Path $lib "javafx-controls-21.0.2-win.jar"
 $javafxGraphics = Join-Path $lib "javafx-graphics-21.0.2-win.jar"
+$javafxMedia = Join-Path $lib "javafx-media-21.0.2-win.jar"
 $port = if ($env:TANK_PORT) { $env:TANK_PORT } else { "7788" }
 $serverHost = if ($env:TANK_HOST) { $env:TANK_HOST } else { "127.0.0.1" }
 $clientClass = Join-Path $classes "com\tankgame\client\TankClientApp.class"
@@ -28,6 +29,6 @@ Write-Host "Starting client..."
     "-Dtank.host=$serverHost" `
     "-Dtank.port=$port" `
     -cp "$classes;$gson" `
-    --module-path "$javafxBase;$javafxControls;$javafxGraphics" `
-    --add-modules javafx.controls `
+    --module-path "$javafxBase;$javafxControls;$javafxGraphics;$javafxMedia" `
+    --add-modules javafx.controls,javafx.media `
     com.tankgame.client.TankClientApp

@@ -12,6 +12,7 @@ $gson = Join-Path $lib "gson-2.11.0.jar"
 $javafxBase = Join-Path $lib "javafx-base-21.0.2-win.jar"
 $javafxControls = Join-Path $lib "javafx-controls-21.0.2-win.jar"
 $javafxGraphics = Join-Path $lib "javafx-graphics-21.0.2-win.jar"
+$javafxMedia = Join-Path $lib "javafx-media-21.0.2-win.jar"
 
 New-Item -ItemType Directory -Force -Path $classes | Out-Null
 
@@ -24,7 +25,7 @@ $sources = Get-ChildItem -Path (Join-Path $root "src\main\java") -Recurse -Filte
 $argsFile = Join-Path $root "target\javac.args"
 $classesArg = "target/classes"
 $gsonArg = "lib/gson-2.11.0.jar"
-$modulePathArg = "lib/javafx-base-21.0.2-win.jar;lib/javafx-controls-21.0.2-win.jar;lib/javafx-graphics-21.0.2-win.jar"
+$modulePathArg = "lib/javafx-base-21.0.2-win.jar;lib/javafx-controls-21.0.2-win.jar;lib/javafx-graphics-21.0.2-win.jar;lib/javafx-media-21.0.2-win.jar"
 $javacArgs = @(
     "-encoding"
     "UTF-8"
@@ -35,7 +36,7 @@ $javacArgs = @(
     "--module-path"
     "`"$modulePathArg`""
     "--add-modules"
-    "javafx.controls"
+    "javafx.controls,javafx.media"
     "-d"
     "`"$classesArg`""
 ) + ($sources | ForEach-Object { "`"$_`"" })

@@ -9,9 +9,11 @@ import com.tankgame.common.WallState;
 import javafx.animation.AnimationTimer;
 import javafx.application.Application;
 import javafx.application.Platform;
+import javafx.beans.binding.Bindings;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.geometry.VPos;
+import javafx.scene.Group;
 import javafx.scene.Scene;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
@@ -21,11 +23,15 @@ import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
 import javafx.scene.image.Image;
 import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyCombination;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import javafx.scene.media.Media;
+import javafx.scene.media.MediaPlayer;
+import javafx.scene.media.MediaView;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
@@ -66,6 +72,17 @@ public class TankClientApp extends Application {
     private Image healImage;
     private Image speedImage;
     private Image rapidImage;
+    private Image reticleImage;
+    private Image backgroundImage;
+    private Image explosionImage;
+    private Image flameImage;
+    private Image barrel1Image;
+    private Image barrel2Image;
+    private Image barrel3Image;
+
+    private final List<Image> explosionFrames = new ArrayList<>();
+    private final List<Image> flashFrames = new ArrayList<>();
+    private final List<Image> flameFrames = new ArrayList<>();
 
     private NetworkManager network;
     private String phase = "MENU";
@@ -78,6 +95,14 @@ public class TankClientApp extends Application {
     private StackPane gameRoot;
     private VBox pauseOverlay;
     private VBox roomOverlay;
+    
+    // 聊天系統組件
+    private VBox chatHistory;
+    private TextField chatInputField;
+    private VBox chatContainer;
+    private boolean isChatting;
+    private List<List<int[]>> currentAiPaths; // 新增：保存當前收到的 AI 路徑
+
     private Label roomTitleLabel;
     private Label roomStatusLabel;
     private TextFlow roomPlayersFlow;
@@ -107,13 +132,133 @@ public class TankClientApp extends Application {
     @Override
     public void start(Stage stage) {
         loadImages();
+        createChatUI();
         savedName = defaultName();
         savedHost = defaultHost();
         savedPort = defaultPort();
         stage.setTitle("坦克車戰爭");
         stage.setResizable(false);
-        stage.setScene(createLobbyScene(stage));
+        stage.setFullScreenExitHint("");
+        stage.setFullScreenExitKeyCombination(KeyCombination.NO_MATCH);
+        
+        // 播放開場動畫，結束後進入大廳
+        showIntroCinematic(stage);
         stage.show();
+    }
+
+    private void showIntroCinematic(Stage stage) {
+        File videoFile = new File("assets/videos/坦克爭霸開場.mp4");
+        if (!videoFile.exists()) {
+            stage.setScene(createLobbyScene(stage));
+            return;
+        }
+
+        Media media = new Media(videoFile.toURI().toString());
+        MediaPlayer mediaPlayer = new MediaPlayer(media);
+        MediaView mediaView = new MediaView(mediaPlayer);
+
+        // 自動縮放影片以填滿視窗
+        mediaView.fitWidthProperty().bind(stage.widthProperty());
+        mediaView.fitHeightProperty().bind(stage.heightProperty());
+        mediaView.setPreserveRatio(true);
+
+        StackPane root = new StackPane(mediaView);
+        root.setStyle("-fx-background-color: black;");
+        Scene scene = new Scene(root, WIDTH, HEIGHT);
+        
+        // 點擊或按鍵可跳過
+        scene.setOnKeyPressed(e -> {
+            mediaPlayer.stop();
+            stage.setScene(createLobbyScene(stage));
+        });
+        scene.setOnMouseClicked(e -> {
+            mediaPlayer.stop();
+            stage.setScene(createLobbyScene(stage));
+        });
+
+        // 影片播放完畢後自動進入大廳
+        mediaPlayer.setOnEndOfMedia(() -> {
+            Platform.runLater(() -> {
+                mediaPlayer.stop();
+                stage.setScene(createLobbyScene(stage));
+            });
+        });
+
+        stage.setScene(scene);
+        mediaPlayer.play();
+    }
+
+    private void createChatUI() {
+        chatHistory = new VBox(4);
+        chatHistory.setAlignment(Pos.BOTTOM_LEFT);
+        chatHistory.setMouseTransparent(true);
+        chatHistory.setMaxWidth(400);
+
+        chatInputField = new TextField();
+        chatInputField.setPromptText("輸入訊息並按 Enter...");
+        chatInputField.setStyle("-fx-background-color: rgba(0,0,0,0.7); -fx-text-fill: white; -fx-font-family: 'Microsoft JhengHei'; -fx-border-color: #ffca3a; -fx-border-radius: 4;");
+        chatInputField.setVisible(false);
+        chatInputField.setManaged(false);
+
+        chatInputField.setOnAction(e -> {
+            String text = chatInputField.getText();
+            if (network != null && !text.isBlank()) {
+                network.sendChat(text);
+            }
+            chatInputField.setText("");
+            stopChatting();
+        });
+
+        chatContainer = new VBox(10, chatHistory, chatInputField);
+        chatContainer.setAlignment(Pos.BOTTOM_LEFT);
+        chatContainer.setPadding(new Insets(0, 0, 140, 20)); // 位置調高一點避免擋到血量
+        chatContainer.setPickOnBounds(false);
+        chatContainer.setMouseTransparent(false);
+    }
+
+    private void startChatting() {
+        if (isChatting) return;
+        isChatting = true;
+        chatInputField.setVisible(true);
+        chatInputField.setManaged(true);
+        chatInputField.requestFocus();
+        resetInput();
+    }
+
+    private void stopChatting() {
+        isChatting = false;
+        chatInputField.setVisible(false);
+        chatInputField.setManaged(false);
+        // 交回焦點給場景
+    }
+
+    private void addChatMessage(String sender, String text) {
+        Platform.runLater(() -> {
+            Text nameTxt = new Text(sender + ": ");
+            nameTxt.setFill(Color.web("#ffca3a"));
+            nameTxt.setFont(Font.font("Microsoft JhengHei", FontWeight.BOLD, 14));
+            
+            Text contentTxt = new Text(text);
+            contentTxt.setFill(Color.WHITE);
+            contentTxt.setFont(Font.font("Microsoft JhengHei", FontWeight.NORMAL, 14));
+            
+            TextFlow row = new TextFlow(nameTxt, contentTxt);
+            row.setStyle("-fx-background-color: rgba(0,0,0,0.4); -fx-background-radius: 4;");
+            row.setPadding(new Insets(3, 8, 3, 8));
+            
+            chatHistory.getChildren().add(row);
+            if (chatHistory.getChildren().size() > 10) {
+                chatHistory.getChildren().remove(0);
+            }
+            
+            // 自動淡出
+            javafx.animation.FadeTransition fade = new javafx.animation.FadeTransition(javafx.util.Duration.seconds(3), row);
+            fade.setFromValue(1.0);
+            fade.setToValue(0.0);
+            fade.setDelay(javafx.util.Duration.seconds(6));
+            fade.setOnFinished(e -> chatHistory.getChildren().remove(row));
+            fade.play();
+        });
     }
 
     private Scene createLobbyScene(Stage stage) {
@@ -169,7 +314,7 @@ public class TankClientApp extends Application {
         join.setStyle("-fx-background-color: #ffca3a; -fx-text-fill: #15191f; -fx-font-family: Microsoft JhengHei, Verdana; -fx-font-size: 15px; -fx-font-weight: 900;");
         join.setOnAction(event -> joinRoom(stage, nameField, hostField, portField, roomField, modeBox, tankBox, status, join));
 
-        Label hint = new Label("PVE：所有玩家合作打 AI。PVP：請分成紅隊與藍隊，全部準備後開始。");
+        Label hint = new Label("PVE：所有玩家合作打 AI。PVP：請分成紅隊與藍隊，全部準備後開始。\n按 F11 可切換全螢幕模式。");
         hint.setWrapText(true);
         hint.setAlignment(Pos.CENTER);
         hint.setStyle("-fx-font-family: Microsoft JhengHei, Verdana; -fx-font-size: 12px; -fx-text-fill: #b8c0cc;");
@@ -178,8 +323,39 @@ public class TankClientApp extends Application {
 
         Canvas decor = new Canvas(WIDTH, HEIGHT);
         drawLobbyBackdrop(decor.getGraphicsContext2D());
-        root.setCenter(new StackPane(decor, panel));
-        return new Scene(root, WIDTH, HEIGHT);
+        root.setCenter(new StackPane(decor, panel, chatContainer));
+        
+        Group scalingGroup = new Group(root);
+        StackPane rootContainer = new StackPane(scalingGroup);
+        rootContainer.setStyle("-fx-background-color: #10151b;");
+        
+        Scene scene = stage.getScene();
+        if (scene == null) {
+            scene = new Scene(rootContainer, WIDTH, HEIGHT);
+        } else {
+            scene.setRoot(rootContainer);
+        }
+        
+        // 縮放邏輯
+        root.scaleXProperty().bind(Bindings.min(scene.widthProperty().divide(WIDTH), scene.heightProperty().divide(HEIGHT)));
+        root.scaleYProperty().bind(root.scaleXProperty());
+        
+        scene.setOnKeyPressed(event -> {
+            KeyCode code = event.getCode();
+            if (code == KeyCode.T && !isChatting) {
+                startChatting();
+                event.consume();
+                return;
+            }
+            if (isChatting) {
+                if (code == KeyCode.ESCAPE) stopChatting();
+                return;
+            }
+            if (code == KeyCode.F11) {
+                stage.setFullScreen(!stage.isFullScreen());
+            }
+        });
+        return scene;
     }
 
     private TextField lobbyField(String value) {
@@ -249,11 +425,38 @@ public class TankClientApp extends Application {
         roomOverlay = createRoomOverlay(stage);
         pauseOverlay = createPauseOverlay(stage);
         pauseOverlay.setVisible(false);
-        gameRoot.getChildren().addAll(roomOverlay, pauseOverlay);
-        Scene scene = new Scene(gameRoot, WIDTH, HEIGHT);
+        gameRoot.getChildren().addAll(roomOverlay, pauseOverlay, chatContainer);
+        
+        Group scalingGroup = new Group(gameRoot);
+        StackPane rootContainer = new StackPane(scalingGroup);
+        rootContainer.setStyle("-fx-background-color: #05070a;"); // 背景填黑
+
+        Scene scene = stage.getScene();
+        scene.setRoot(rootContainer);
+        
+        // 自動縮放邏輯：保持比例並置中
+        gameRoot.scaleXProperty().bind(Bindings.min(scene.widthProperty().divide(WIDTH), scene.heightProperty().divide(HEIGHT)));
+        gameRoot.scaleYProperty().bind(gameRoot.scaleXProperty());
 
         scene.setOnKeyPressed(event -> {
             KeyCode code = event.getCode();
+            
+            // 聊天模式切換
+            if (code == KeyCode.T && !isChatting) {
+                startChatting();
+                event.consume();
+                return;
+            }
+            if (isChatting) {
+                if (code == KeyCode.ESCAPE) stopChatting();
+                return;
+            }
+
+            if (code == KeyCode.F11) {
+                stage.setFullScreen(!stage.isFullScreen());
+                event.consume();
+                return;
+            }
             if (code == KeyCode.ESCAPE) {
                 togglePause();
                 event.consume();
@@ -273,21 +476,26 @@ public class TankClientApp extends Application {
             if (code == KeyCode.D) inputState.right = false;
             if (code == KeyCode.SPACE) inputState.fire = false;
         });
-        scene.setOnMouseMoved(event -> {
+
+        // 將滑鼠監聽器移到 gameRoot 上，這樣 JavaFX 會自動幫我們轉換縮放後的座標
+        gameRoot.setOnMouseMoved(event -> {
             inputState.aimX = event.getX();
             inputState.aimY = event.getY();
         });
-        scene.setOnMouseDragged(event -> {
+        gameRoot.setOnMouseDragged(event -> {
             inputState.aimX = event.getX();
             inputState.aimY = event.getY();
         });
-        scene.setOnMousePressed(event -> inputState.shooting = true);
-        scene.setOnMouseReleased(event -> inputState.shooting = false);
+        gameRoot.setOnMousePressed(event -> inputState.shooting = true);
+        gameRoot.setOnMouseReleased(event -> inputState.shooting = false);
 
         gameLoop = new AnimationTimer() {
             @Override
             public void handle(long now) {
-                if (!paused && "COMBAT".equals(phase) && now - lastInputSentNanos >= 50_000_000L) {
+                // 倒數 3 秒內不發送移動與射擊指令
+                boolean countingDown = gameStartedNanos > 0 && (now - gameStartedNanos) < 3_000_000_000L;
+                
+                if (!paused && "COMBAT".equals(phase) && !countingDown && now - lastInputSentNanos >= 50_000_000L) {
                     network.sendInput(
                             inputState.up,
                             inputState.down,
@@ -307,7 +515,6 @@ public class TankClientApp extends Application {
         gameStartedNanos = 0;
         updateRoomOverlay();
 
-        stage.setScene(scene);
         canvas.requestFocus();
     }
 
@@ -492,6 +699,10 @@ public class TankClientApp extends Application {
         if (msg == null) {
             return;
         }
+        if ("chat".equals(msg.type)) {
+            addChatMessage(msg.chatSender, msg.chatText);
+            return;
+        }
         if ("state".equals(msg.type)) {
             Platform.runLater(() -> {
                 replace(players, msg.players);
@@ -506,6 +717,7 @@ public class TankClientApp extends Application {
                 roomCode = msg.roomCode == null ? roomCode : msg.roomCode;
                 gameMode = msg.gameMode == null ? gameMode : msg.gameMode;
                 serverMessage = msg.message == null ? "" : msg.message;
+                currentAiPaths = msg.aiPaths; // 更新 AI 路徑資料
                 if ("COMBAT".equals(phase) && gameStartedNanos == 0) {
                     gameStartedNanos = System.nanoTime();
                     selectedReady = true;
@@ -573,8 +785,10 @@ public class TankClientApp extends Application {
         drawPowerUps(gc, now);
         drawBullets(gc);
         drawPlayers(gc, selfId);
+        drawAiPaths(gc); // 新增：繪製尋路 Debug 線條
         drawEffects(gc);
         drawHud(gc, selfId);
+        drawReticle(gc);
         drawStartHint(gc, now);
         if ("ROOM_WAIT".equals(phase)) {
             drawWaitingShade(gc);
@@ -615,6 +829,10 @@ public class TankClientApp extends Application {
     }
 
     private void drawArena(GraphicsContext gc) {
+        if (backgroundImage != null) {
+            gc.drawImage(backgroundImage, 24, 24, WIDTH - 48, HEIGHT - 48);
+            return;
+        }
         gc.setFill(Color.web("#21452d"));
         gc.fillRect(24, 24, WIDTH - 48, HEIGHT - 48);
         gc.setFill(Color.web("#2f5b39"));
@@ -630,6 +848,15 @@ public class TankClientApp extends Application {
 
     private void drawWalls(GraphicsContext gc) {
         for (WallState wall : walls) {
+            // 如果牆壁尺寸較小，將其繪製為油桶裝飾
+            if (wall.w <= 50 && wall.h <= 50 && barrel1Image != null) {
+                int hash = (int)(wall.x * 31 + wall.y);
+                int type = Math.abs(hash % 3);
+                Image barrel = (type == 0) ? barrel1Image : (type == 1 ? barrel2Image : barrel3Image);
+                // 置中繪製油桶
+                gc.drawImage(barrel, wall.x + (wall.w - 38)/2, wall.y + (wall.h - 38)/2, 38, 38);
+                continue;
+            }
             gc.setFill(Color.web("#41464f"));
             gc.fillRoundRect(wall.x, wall.y, wall.w, wall.h, 8, 8);
             gc.setStroke(Color.web("#747b86"));
@@ -669,16 +896,45 @@ public class TankClientApp extends Application {
     private void drawBullets(GraphicsContext gc) {
         for (BulletState b : bullets) {
             double angle = Math.atan2(b.vy, b.vx);
+            
+            // 繪製砲彈尾流 (Wake) - 再次放大兩倍 (48x120)
+            if (flameImage != null) {
+                drawCenteredImage(gc, flameImage, b.x - Math.cos(angle) * 15, b.y - Math.sin(angle) * 15, 48, 120, angle + Math.PI / 2, 0.5);
+            }
+            
             gc.setStroke(Color.web("#ffb703", 0.30));
             gc.setLineWidth(4);
             gc.strokeLine(b.x - Math.cos(angle) * 18, b.y - Math.sin(angle) * 18, b.x, b.y);
             if (bulletImage != null) {
-                drawCenteredImage(gc, bulletImage, b.x, b.y, 7, 26, angle + Math.PI / 2, 1);
+                // 砲彈再次放大兩倍 (28x104)
+                drawCenteredImage(gc, bulletImage, b.x, b.y, 28, 104, angle + Math.PI / 2, 1);
             } else {
                 gc.setFill(Color.web("#fff3b0"));
                 gc.fillOval(b.x - 4, b.y - 4, 8, 8);
             }
         }
+    }
+
+    private void drawReticle(GraphicsContext gc) {
+        if (!"COMBAT".equals(phase) || paused) {
+            return;
+        }
+        double x = inputState.aimX;
+        double y = inputState.aimY;
+        if (reticleImage != null) {
+            drawCenteredImage(gc, reticleImage, x, y, 38, 38, 0, 0.82);
+            return;
+        }
+        gc.setStroke(Color.web("#050608", 0.90));
+        gc.setLineWidth(3);
+        gc.strokeOval(x - 12, y - 12, 24, 24);
+        gc.strokeLine(x - 20, y, x - 8, y);
+        gc.strokeLine(x + 8, y, x + 20, y);
+        gc.strokeLine(x, y - 20, x, y - 8);
+        gc.strokeLine(x, y + 8, x, y + 20);
+        gc.setStroke(Color.web("#ffca3a", 0.82));
+        gc.setLineWidth(1.5);
+        gc.strokeOval(x - 12, y - 12, 24, 24);
     }
 
     private void drawPlayers(GraphicsContext gc, String selfId) {
@@ -696,7 +952,9 @@ public class TankClientApp extends Application {
             Image head = tankHeadFor(p.tankType);
             if (body != null && head != null) {
                 double scale = "HEAVY".equals(p.tankType) ? 1.15 : "SCOUT".equals(p.tankType) ? 0.92 : 1.0;
-                drawCenteredImage(gc, body, p.x, p.y, 39 * scale, 58 * scale, p.angle + Math.PI / 2, 1);
+                // 車身使用 bodyAngle (移動方向)
+                drawCenteredImage(gc, body, p.x, p.y, 39 * scale, 58 * scale, p.bodyAngle + Math.PI / 2, 1);
+                // 砲塔使用 angle (瞄準方向)
                 drawCenteredImage(gc, head, p.x, p.y, 31 * scale, 55 * scale, p.angle + Math.PI / 2, 1);
             } else {
                 drawFallbackTank(gc, p, self);
@@ -723,20 +981,28 @@ public class TankClientApp extends Application {
     private void drawFallbackTank(GraphicsContext gc, PlayerState p, boolean self) {
         gc.save();
         gc.translate(p.x, p.y);
-        gc.rotate(Math.toDegrees(p.angle));
+        
+        // 車身部分旋轉
+        gc.save();
+        gc.rotate(Math.toDegrees(p.bodyAngle));
         gc.setFill(Color.web(p.color == null ? "#4cc9f0" : p.color));
         gc.fillRoundRect(-19, -15, 38, 30, 9, 9);
+        gc.restore();
+        
+        // 砲塔部分旋轉 (瞄準方向)
+        gc.rotate(Math.toDegrees(p.angle));
         gc.setFill(Color.web(self ? "#fff1a8" : "#232933"));
         gc.fillRoundRect(-6, -10, 35, 20, 7, 7);
         gc.setFill(Color.web("#1c222b"));
         gc.fillRoundRect(8, -4, 29, 8, 4, 4);
+        
         gc.restore();
     }
 
     private void drawWreck(GraphicsContext gc, PlayerState p) {
         gc.save();
         gc.translate(p.x, p.y);
-        gc.rotate(Math.toDegrees(p.angle));
+        gc.rotate(Math.toDegrees(p.bodyAngle));
         gc.setFill(Color.web("#191c21"));
         gc.fillRoundRect(-18, -14, 36, 28, 8, 8);
         gc.setStroke(Color.web("#3b414c"));
@@ -755,24 +1021,67 @@ public class TankClientApp extends Application {
         gc.fillRoundRect(p.x - w / 2, p.y + 25, w * pct, 6, 3, 3);
     }
 
+    private void drawAiPaths(GraphicsContext gc) {
+        if (currentAiPaths == null || currentAiPaths.isEmpty()) return;
+        
+        gc.setStroke(Color.web("#9ef01a", 0.4));
+        gc.setLineWidth(2);
+        
+        for (List<int[]> path : currentAiPaths) {
+            if (path == null || path.size() < 2) continue;
+            
+            gc.beginPath();
+            // GRID_SIZE 20, 偏移 10 到格子中心
+            gc.moveTo(path.get(0)[0] * 20 + 10, path.get(0)[1] * 20 + 10);
+            for (int i = 1; i < path.size(); i++) {
+                gc.lineTo(path.get(i)[0] * 20 + 10, path.get(i)[1] * 20 + 10);
+            }
+            gc.stroke();
+            
+            // 繪製路徑點
+            for (int[] node : path) {
+                gc.setFill(Color.web("#9ef01a", 0.6));
+                gc.fillOval(node[0] * 20 + 8, node[1] * 20 + 8, 4, 4);
+            }
+        }
+    }
+
     private void drawEffects(GraphicsContext gc) {
         for (EffectState e : effects) {
             double alpha = Math.min(1.0, Math.max(0.12, e.lifeTicks / 28.0));
-            if ("MUZZLE".equals(e.type) && shot1Image != null) {
-                drawCenteredImage(gc, shot1Image, e.x, e.y, 12, 34, 0, alpha);
-            } else if (("HIT".equals(e.type) || "SPARK".equals(e.type)) && shot2Image != null) {
-                drawCenteredImage(gc, shot2Image, e.x, e.y, 24, 40, 0, alpha);
+            
+            if ("MUZZLE".equals(e.type)) {
+                // 開火動畫播放 - 使用 EffectState 帶入的角度
+                Image frame = getAnimationFrame(flashFrames, e.lifeTicks, 6);
+                if (frame != null) {
+                    drawCenteredImage(gc, frame, e.x, e.y, 48, 136, e.angle + Math.PI / 2, alpha);
+                }
+                
+            } else if ("HIT".equals(e.type) || "SPARK".equals(e.type)) {
+                // 擊中火花播放 - 使用 EffectState 帶入的角度
+                Image frame = getAnimationFrame(explosionFrames, e.lifeTicks, 14);
+                if (frame != null) {
+                    drawCenteredImage(gc, frame, e.x, e.y, 96, 160, e.angle + Math.PI / 2, alpha);
+                }
+                
             } else if ("BOOM".equals(e.type)) {
-                gc.setFill(Color.web("#fb5607", alpha * 0.28));
-                gc.fillOval(e.x - e.radius, e.y - e.radius, e.radius * 2, e.radius * 2);
-                gc.setStroke(Color.web("#ffca3a", alpha));
-                gc.setLineWidth(4);
-                gc.strokeOval(e.x - e.radius * 0.65, e.y - e.radius * 0.65, e.radius * 1.3, e.radius * 1.3);
+                // 爆炸大動畫播放 (爆炸通常不需特定旋轉，可隨機或固定)
+                Image frame = getAnimationFrame(explosionFrames, e.lifeTicks, 28);
+                if (frame != null) {
+                    drawCenteredImage(gc, frame, e.x, e.y, 360, 360, e.angle, alpha);
+                } else {
+                    gc.setFill(Color.web("#fb5607", alpha * 0.28));
+                    gc.fillOval(e.x - e.radius, e.y - e.radius, e.radius * 2, e.radius * 2);
+                    gc.setStroke(Color.web("#ffca3a", alpha));
+                    gc.setLineWidth(4);
+                    gc.strokeOval(e.x - e.radius * 0.65, e.y - e.radius * 0.65, e.radius * 1.3, e.radius * 1.3);
+                }
             } else {
                 gc.setStroke(Color.web("#fff3b0", alpha));
                 gc.setLineWidth(3);
                 gc.strokeOval(e.x - e.radius / 2, e.y - e.radius / 2, e.radius, e.radius);
             }
+            
             if ("PICKUP".equals(e.type) && e.label != null) {
                 gc.setTextAlign(TextAlignment.CENTER);
                 gc.setTextBaseline(VPos.CENTER);
@@ -781,6 +1090,15 @@ public class TankClientApp extends Application {
                 gc.fillText(e.label, e.x, e.y - 32 - (24 - e.lifeTicks));
             }
         }
+    }
+
+    private Image getAnimationFrame(List<Image> frames, int currentLife, int maxLife) {
+        if (frames.isEmpty()) return null;
+        // 根據剩餘生命計算應該播放哪一幀 (倒著播或正著播，這裡假設 maxLife 是起始點)
+        int totalFrames = frames.size();
+        int frameIndex = (maxLife - currentLife) * totalFrames / maxLife;
+        frameIndex = Math.max(0, Math.min(totalFrames - 1, frameIndex));
+        return frames.get(frameIndex);
     }
 
     private boolean isNearFreshEffect(PlayerState player, String type, double distance) {
@@ -837,18 +1155,42 @@ public class TankClientApp extends Application {
     }
 
     private void drawStartHint(GraphicsContext gc, long now) {
-        if (gameStartedNanos == 0 || now - gameStartedNanos > 2_400_000_000L || !"COMBAT".equals(phase)) {
+        if (gameStartedNanos == 0 || !"COMBAT".equals(phase)) {
             return;
         }
-        double alpha = 1.0 - Math.max(0, (now - gameStartedNanos - 1_200_000_000L) / 1_200_000_000.0);
+        
+        long elapsedNanos = now - gameStartedNanos;
+        if (elapsedNanos > 4_000_000_000L) {
+            return;
+        }
+
         gc.setTextAlign(TextAlignment.CENTER);
         gc.setTextBaseline(VPos.CENTER);
-        gc.setFont(Font.font("Microsoft JhengHei", FontWeight.EXTRA_BOLD, 42));
-        gc.setFill(Color.web("#ffca3a", Math.min(1.0, alpha)));
-        gc.fillText("準備開始", WIDTH / 2, HEIGHT / 2 - 18);
-        gc.setFont(Font.font("Microsoft JhengHei", FontWeight.BOLD, 16));
-        gc.setFill(Color.web("#ffffff", Math.min(0.88, alpha)));
-        gc.fillText("WASD 移動，滑鼠瞄準，左鍵或 Space 射擊，ESC 暫停", WIDTH / 2, HEIGHT / 2 + 28);
+
+        if (elapsedNanos < 3_000_000_000L) {
+            // 3, 2, 1 倒數
+            int secondsLeft = 3 - (int)(elapsedNanos / 1_000_000_000L);
+            
+            // 加上半透明遮罩
+            gc.setFill(Color.web("#000000", 0.3));
+            gc.fillRect(0, 0, WIDTH, HEIGHT);
+            
+            // 倒數文字動畫效果 (縮放感)
+            double pulse = 1.0 + 0.2 * Math.sin((elapsedNanos % 1_000_000_000L) / 1_000_000_000.0 * Math.PI);
+            gc.setFont(Font.font("Microsoft JhengHei", FontWeight.EXTRA_BOLD, 120 * pulse));
+            gc.setFill(Color.web("#ffca3a"));
+            gc.fillText(String.valueOf(secondsLeft), WIDTH / 2, HEIGHT / 2);
+            
+            gc.setFont(Font.font("Microsoft JhengHei", FontWeight.BOLD, 20));
+            gc.setFill(Color.WHITE);
+            gc.fillText("準備戰鬥！ (按 T 聊天)", WIDTH / 2, HEIGHT / 2 + 100);
+        } else {
+            // GO!
+            double alpha = 1.0 - (elapsedNanos - 3_000_000_000L) / 1_000_000_000.0;
+            gc.setFont(Font.font("Microsoft JhengHei", FontWeight.EXTRA_BOLD, 100));
+            gc.setFill(Color.web("#9ef01a", alpha));
+            gc.fillText("GO!", WIDTH / 2, HEIGHT / 2);
+        }
     }
 
     private PlayerState findPlayer(String id) {
@@ -904,18 +1246,54 @@ public class TankClientApp extends Application {
     }
 
     private void loadImages() {
-        tankBodyImage = loadImage("tankbody.png", 90, 140);
-        tankHeadImage = loadImage("tankhead.png", 70, 125);
-        loadTankVariant("SCOUT", "tank_scout_body.png", "tank_scout_head.png");
-        loadTankVariant("HEAVY", "tank_heavy_body.png", "tank_heavy_head.png");
-        loadTankVariant("ASSAULT", "tank_assault_body.png", "tank_assault_head.png");
-        loadTankVariant("SNIPER", "tank_sniper_body.png", "tank_sniper_head.png");
-        bulletImage = loadImage("Bullet.png", 10, 40);
-        shot1Image = loadImage("Shot1.png", 16, 42);
-        shot2Image = loadImage("Shot2.png", 32, 48);
-        healImage = firstImage(40, 40, "heal.png", "+Black.png");
-        speedImage = loadImage("boost.png", 40, 40);
-        rapidImage = loadImage("rapid.png", 40, 40);
+        backgroundImage = loadImage("Item_Etc/Background_Sample.png", WIDTH, HEIGHT);
+        
+        tankBodyImage = loadImage("Tank/M1_Bot.png", 90, 140);
+        tankHeadImage = loadImage("Tank/M1_Top.png", 70, 125);
+        
+        loadTankVariant("ASSAULT", "Tank/M1_Bot.png", "Tank/M1_Top.png");
+        loadTankVariant("SCOUT", "Tank/L21_Bot.png", "Tank/L21_Top.png");
+        loadTankVariant("HEAVY", "Tank/KV1_Bot.png", "Tank/KV1_Top.png");
+        loadTankVariant("SNIPER", "Tank/PT1_Bot.png", "Tank/PT1_Top.png");
+        
+        bulletImage = loadImage("Effects/Granade_Shell.png", 0, 0);
+        
+        // 載入開火動畫 Flash_A_01 ~ 05 (原始尺寸)
+        loadSequence(flashFrames, "Effects/Flash_A_0", 1, 5, 0, 0);
+        shot1Image = flashFrames.isEmpty() ? null : flashFrames.get(0);
+        
+        // 載入擊中/爆炸序列 Explosion_A ~ H (原始尺寸)
+        loadSequence(explosionFrames, "Effects/Explosion_", 'A', 'H', 0, 0);
+        explosionImage = explosionFrames.isEmpty() ? null : explosionFrames.get(0);
+        
+        // 載入尾流序列 Flame_A ~ H (原始尺寸)
+        loadSequence(flameFrames, "Effects/Flame_", 'A', 'H', 0, 0);
+        flameImage = flameFrames.isEmpty() ? null : flameFrames.get(0);
+        
+        healImage = loadImage("Item_Etc/thumb_item_Fix_1.png", 40, 40);
+        speedImage = loadImage("Item_Etc/thumb_item_Booster.png", 40, 40);
+        rapidImage = loadImage("Item_Etc/thumb_item_Speed.png", 40, 40);
+        reticleImage = loadImage("Effects/+Black.png", 0, 0); // 載入原始尺寸
+        
+        barrel1Image = loadImage("Item_Etc/prop_Barrel_1.png", 0, 0);
+        barrel2Image = loadImage("Item_Etc/prop_Barrel_2.png", 0, 0);
+        barrel3Image = loadImage("Item_Etc/prop_Barrel_3.png", 0, 0);
+    }
+
+    private void loadSequence(List<Image> target, String prefix, int start, int end, double w, double h) {
+        target.clear();
+        for (int i = start; i <= end; i++) {
+            Image img = loadImage(prefix + i + ".png", w, h);
+            if (img != null) target.add(img);
+        }
+    }
+
+    private void loadSequence(List<Image> target, String prefix, char start, char end, double w, double h) {
+        target.clear();
+        for (char i = start; i <= end; i++) {
+            Image img = loadImage(prefix + i + ".png", w, h);
+            if (img != null) target.add(img);
+        }
     }
 
     private void loadTankVariant(String type, String bodyName, String headName) {
@@ -949,8 +1327,8 @@ public class TankClientApp extends Application {
         return null;
     }
 
-    private Image loadImage(String name, double requestedWidth, double requestedHeight) {
-        File file = new File("image", name);
+    private Image loadImage(String path, double requestedWidth, double requestedHeight) {
+        File file = new File("assets/images", path);
         if (!file.exists()) {
             return null;
         }
@@ -962,11 +1340,22 @@ public class TankClientApp extends Application {
         if (image == null) {
             return;
         }
+        
+        double imgW = image.getWidth();
+        double imgH = image.getHeight();
+        
+        // 自動等比例縮放邏輯
+        double scale = Math.min(w / imgW, h / imgH);
+        // 使用 Math.ceil 並增加 0.5 像素緩衝，防止在邊界處因浮點數誤差被裁切
+        double drawW = Math.ceil(imgW * scale) + 0.5;
+        double drawH = Math.ceil(imgH * scale) + 0.5;
+
         gc.save();
         gc.setGlobalAlpha(alpha);
         gc.translate(x, y);
         gc.rotate(Math.toDegrees(angle));
-        gc.drawImage(image, -w / 2, -h / 2, w, h);
+        // 使用整數座標繪製，減少模糊與裁切感
+        gc.drawImage(image, -drawW / 2, -drawH / 2, drawW, drawH);
         gc.restore();
     }
 

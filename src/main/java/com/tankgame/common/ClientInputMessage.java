@@ -8,6 +8,7 @@ public class ClientInputMessage {
     public String gameMode;
     public String team;
     public String tankType;
+    public String text; // 新增：聊天文字
     public boolean ready;
     public boolean up;
     public boolean down;
