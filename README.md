@@ -5,15 +5,17 @@
 ## 功能特色
 
 - Java Socket 多人連線架構
-- JavaFX 大廳介面，可輸入玩家名稱、伺服器 IP、Port
-- 支援同一台電腦開兩個 Client 測試
-- 支援兩台不同電腦在同一個區域網路連線對戰
-- Server 負責遊戲規則：移動、射擊、子彈、扣血、道具、AI、勝負判定
-- Client 負責玩家輸入與畫面渲染
-- 使用 `image/` 資料夾內的圖片素材顯示坦克、砲塔、子彈與特效
-- 每局會產生簡單隨機地圖，牆面位置會有變化
+- JavaFX 大廳介面與 MP4 影片開場動畫
+- 內建 Minecraft 風格聊天系統，按 `T` 即可即時通訊
+- 支援同機多開測試與區域網路雙電腦連線對戰
+- **進階物理與導航系統**：
+  - **A* 智慧尋路**：AI 坦克能精確繞過障礙物，不會卡牆
+  - **Circle-Rect 碰撞排斥**：坦克之間會互相推擠，且能順著牆壁滑行脫困
+  - **車身與砲塔分離**：支援車身移動方向與砲塔瞄準方向獨立旋轉
+- 使用 `assets/` 資料夾內的素材，支援多幀序列動畫（開火閃光、爆炸等）與 1:1 自動縮放
+- 每局會產生隨機地圖，並自動生成油桶等場景裝飾
+- 遊戲開始時擁有 3-2-1 倒數防偷跑機制
 - 單人測試時會自動加入 AI；兩位真人玩家連線後會切換成純雙人對戰
-- 遊戲中可按 `ESC` 開啟暫停選單，並可返回大廳重新連線
 
 ## 執行方式
 
@@ -150,6 +152,8 @@ W A S D      移動坦克
 滑鼠移動     瞄準砲塔
 滑鼠左鍵     射擊
 Space       射擊
+T           開啟聊天框
+F11         切換全螢幕模式
 ESC         開啟/關閉暫停選單
 ```
 
@@ -162,32 +166,31 @@ ESC         開啟/關閉暫停選單
 
 返回大廳會離開目前對戰並中斷連線，可重新輸入主機與 Port 加入遊戲。
 
-## 圖片素材
+## 圖片與影音素材
 
-遊戲會使用 `image/` 資料夾中的素材：
+遊戲支援高解析度素材，並會自動自適應縮放。素材統一放置於 `assets/` 資料夾中：
 
-```text
-tankbody.png   坦克車身
-tankhead.png   坦克砲塔
-Bullet.png     子彈
-Shot1.png      開火特效
-Shot2.png      命中特效
-heal.png       補血道具
-boost.png      加速道具
-rapid.png      快速射擊道具
-+Black.png     瞄準鏡準星
-tank_scout_body.png    輕型偵查車車身
-tank_scout_head.png    輕型偵查車砲塔
-tank_heavy_body.png    重型坦克車身
-tank_heavy_head.png    重型坦克砲塔
-tank_assault_body.png  突擊坦克車身
-tank_assault_head.png  突擊坦克砲塔
-tank_sniper_body.png   狙擊坦克車身
-tank_sniper_head.png   狙擊坦克砲塔
-tank_ai_generated_sheet.png  AI 生成素材來源圖
-```
+- **開場動畫**：`assets/videos/坦克爭霸開場.mp4`
+- **背景地圖**：`assets/images/Item_Etc/Background_Sample.png`
+- **坦克外觀 (Tank)**：
+  - 突擊坦克 (Assault)：`M1_Bot.png` / `M1_Top.png`
+  - 輕型偵查 (Scout)：`L21_Bot.png` / `L21_Top.png`
+  - 重型坦克 (Heavy)：`KV1_Bot.png` / `KV1_Top.png`
+  - 狙擊坦克 (Sniper)：`PT1_Bot.png` / `PT1_Top.png`
+- **戰鬥特效 (Effects)**：
+  - 砲彈：`Granade_Shell.png`
+  - 飛行尾流 (多幀動畫)：`Flame_A.png` ~ `H.png`
+  - 開火閃光 (多幀動畫)：`Flash_A_01.png` ~ `05.png`
+  - 擊中火花 (多幀動畫)：`Explosion_B.png` 及爆炸序列
+  - 摧毀大爆炸 (多幀動畫)：`Explosion_A.png` ~ `H.png`
+  - 準星：`+Black.png`
+- **道具與裝飾 (Item_Etc)**：
+  - 修復道具：`thumb_item_Fix_1.png`
+  - 車體加速：`thumb_item_Booster.png`
+  - 射速增加：`thumb_item_Speed.png`
+  - 場景油桶裝飾：`prop_Barrel_1.png` ~ `3.png`
 
-請保持檔名不變，否則遊戲會改用內建 Canvas 繪圖作為備用畫面。
+請保持資料夾結構與檔名前綴不變，否則遊戲會改用內建 Canvas 繪圖作為備用畫面。
 
 ## 隨機地圖
 
