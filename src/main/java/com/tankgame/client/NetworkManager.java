@@ -24,6 +24,7 @@ public class NetworkManager {
     private BufferedReader in;
     private PrintWriter out;
     private String playerId;
+    private long lastServerMessageTime;
 
     public NetworkManager(String host, int port, String playerName, String roomCode, String gameMode, String team, String tankType) {
         this.host = host;
@@ -44,6 +45,7 @@ public class NetworkManager {
             try {
                 String line;
                 while ((line = in.readLine()) != null) {
+                    lastServerMessageTime = System.currentTimeMillis();
                     ServerMessage msg = GSON.fromJson(line, ServerMessage.class);
                     if (msg != null && "welcome".equals(msg.type)) {
                         playerId = msg.playerId;
@@ -56,6 +58,11 @@ public class NetworkManager {
         }, "client-reader");
         readerThread.setDaemon(true);
         readerThread.start();
+        lastServerMessageTime = System.currentTimeMillis();
+    }
+
+    public boolean isTimedOut() {
+        return System.currentTimeMillis() - lastServerMessageTime > 3000;
     }
 
     public void sendInput(boolean up, boolean down, boolean left, boolean right, boolean fire, boolean shooting, double aimX, double aimY) {

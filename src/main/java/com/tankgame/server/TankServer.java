@@ -95,7 +95,7 @@ public class TankServer {
              PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
 
             synchronized (worldLock) {
-                clients.put(playerId, new ClientConnection(playerId, out));
+                clients.put(playerId, new ClientConnection(playerId, out, socket));
             }
             out.println(GSON.toJson(ServerMessage.welcome(playerId)));
             System.out.println("Player connected: " + playerId);
@@ -107,6 +107,11 @@ public class TankServer {
                     continue;
                 }
                 synchronized (worldLock) {
+                    ClientConnection conn = clients.get(playerId);
+                    if (conn != null) {
+                        conn.lastMessageTime = System.currentTimeMillis();
+                    }
+
                     if ("joinRoom".equals(input.type) || "roomUpdate".equals(input.type) || "profile".equals(input.type)) {
                         joinOrUpdateRoom(playerId, input);
                     } else if ("chat".equals(input.type)) {
@@ -175,17 +180,37 @@ public class TankServer {
     }
 
     private void tick() {
-        synchronized (worldLock) {
-            List<String> emptyRooms = new ArrayList<>();
-            for (GameRoom room : rooms.values()) {
-                room.tick();
-                if (room.isEmpty()) {
-                    emptyRooms.add(room.code);
+        try {
+            synchronized (worldLock) {
+                long now = System.currentTimeMillis();
+                List<String> toDisconnect = new ArrayList<>();
+                for (ClientConnection conn : clients.values()) {
+                    if (now - conn.lastMessageTime > 5000) {
+                        toDisconnect.add(conn.playerId);
+                        try {
+                            conn.socket.close();
+                        } catch (Exception ignored) {}
+                    }
+                }
+                for (String id : toDisconnect) {
+                    removePlayer(id);
+                    clients.remove(id);
+                }
+
+                List<String> emptyRooms = new ArrayList<>();
+                for (GameRoom room : rooms.values()) {
+                    room.tick();
+                    if (room.isEmpty()) {
+                        emptyRooms.add(room.code);
+                    }
+                }
+                for (String code : emptyRooms) {
+                    rooms.remove(code);
                 }
             }
-            for (String code : emptyRooms) {
-                rooms.remove(code);
-            }
+        } catch (Exception e) {
+            System.err.println("FATAL ERROR IN SERVER TICK LOOP:");
+            e.printStackTrace();
         }
     }
 
@@ -400,6 +425,11 @@ public class TankServer {
                     setRoomWait("回合結束，請重新準備");
                     broadcastState();
                 }
+                return;
+            }
+            
+            if ("ROOM_WAIT".equals(phase)) {
+                broadcastState();
                 return;
             }
 

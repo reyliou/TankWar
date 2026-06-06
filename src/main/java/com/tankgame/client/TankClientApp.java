@@ -336,6 +336,9 @@ public class TankClientApp extends Application {
             scene.setRoot(rootContainer);
         }
         
+        // 清除可能殘留的過場動畫監聽器
+        scene.setOnMouseClicked(null);
+        
         // 縮放邏輯
         root.scaleXProperty().bind(Bindings.min(scene.widthProperty().divide(WIDTH), scene.heightProperty().divide(HEIGHT)));
         root.scaleYProperty().bind(root.scaleXProperty());
@@ -434,6 +437,9 @@ public class TankClientApp extends Application {
         Scene scene = stage.getScene();
         scene.setRoot(rootContainer);
         
+        // 清除大廳或過場可能殘留的場景層級滑鼠點擊監聽器
+        scene.setOnMouseClicked(null);
+        
         // 自動縮放邏輯：保持比例並置中
         gameRoot.scaleXProperty().bind(Bindings.min(scene.widthProperty().divide(WIDTH), scene.heightProperty().divide(HEIGHT)));
         gameRoot.scaleYProperty().bind(gameRoot.scaleXProperty());
@@ -492,17 +498,26 @@ public class TankClientApp extends Application {
         gameLoop = new AnimationTimer() {
             @Override
             public void handle(long now) {
+                if (network == null) {
+                    return;
+                }
+                if (network.isTimedOut()) {
+                    System.out.println("Network timeout. Returning to lobby.");
+                    returnToLobby(stage);
+                    return;
+                }
                 // 倒數 3 秒內不發送移動與射擊指令
                 boolean countingDown = gameStartedNanos > 0 && (now - gameStartedNanos) < 3_000_000_000L;
                 
-                if (!paused && "COMBAT".equals(phase) && !countingDown && now - lastInputSentNanos >= 50_000_000L) {
+                // 持續發送封包作為 Heartbeat，即使不在 COMBAT 階段也發送，避免被 Server 踢出
+                if (!paused && now - lastInputSentNanos >= 50_000_000L) {
                     network.sendInput(
-                            inputState.up,
-                            inputState.down,
-                            inputState.left,
-                            inputState.right,
-                            inputState.fire,
-                            inputState.shooting || inputState.fire,
+                            countingDown ? false : inputState.up,
+                            countingDown ? false : inputState.down,
+                            countingDown ? false : inputState.left,
+                            countingDown ? false : inputState.right,
+                            countingDown ? false : inputState.fire,
+                            countingDown ? false : (inputState.shooting || inputState.fire),
                             inputState.aimX,
                             inputState.aimY
                     );
