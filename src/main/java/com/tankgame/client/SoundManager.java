@@ -1,52 +1,132 @@
 package com.tankgame.client;
 
-import javax.sound.sampled.AudioFormat;
-import javax.sound.sampled.SourceDataLine;
-import javax.sound.sampled.AudioSystem;
+import javafx.scene.media.AudioClip;
+import javafx.scene.media.Media;
+import javafx.scene.media.MediaPlayer;
+import java.io.File;
+import java.nio.file.Paths;
+import java.util.HashMap;
+import java.util.Map;
 
 public class SoundManager {
-    private static final float SAMPLE_RATE = 22050f;
+    private final Map<String, AudioClip> sfx = new HashMap<>();
+    private MediaPlayer bgmPlayer;
+    private String currentBgmPath;
+
+    public SoundManager() {
+        loadSfx("shoot", "assets/sounds/sfx/tank_fire.MP3");
+        // Fallback or future assets could be added here
+    }
+
+    private void loadSfx(String name, String path) {
+        try {
+            File file = new File(path);
+            if (file.exists()) {
+                sfx.put(name, new AudioClip(file.toURI().toString()));
+            }
+        } catch (Exception e) {
+            System.err.println("Failed to load SFX: " + path + " - " + e.getMessage());
+        }
+    }
 
     public void shoot() {
-        playTone(560, 55, 0.22);
+        playSfx("shoot", 560, 55, 0.22);
     }
 
     public void hit() {
-        playTone(180, 80, 0.28);
+        playSfx("hit", 180, 80, 0.28);
     }
 
     public void pickup() {
-        new Thread(() -> {
-            tone(660, 55, 0.22);
-            tone(880, 65, 0.20);
-        }, "sound-pickup").start();
+        if (sfx.containsKey("pickup")) {
+            sfx.get("pickup").play();
+        } else {
+            new Thread(() -> {
+                tone(660, 55, 0.22);
+                tone(880, 65, 0.20);
+            }, "sound-pickup").start();
+        }
     }
 
     public void boom() {
-        playTone(95, 140, 0.35);
+        playSfx("boom", 95, 140, 0.35);
     }
 
     public void roundResult(boolean won) {
-        new Thread(() -> {
-            if (won) {
-                tone(520, 90, 0.22);
-                tone(700, 90, 0.22);
-                tone(920, 130, 0.24);
-            } else {
+        stopBgm();
+        playBgm("assets/sounds/bgm/endgame.mp3", false);
+        
+        if (!won) {
+            new Thread(() -> {
                 tone(300, 110, 0.20);
                 tone(220, 150, 0.22);
-            }
-        }, "sound-result").start();
+            }, "sound-result").start();
+        }
+    }
+
+    public void updateBgm(String phase) {
+        switch (phase) {
+            case "MENU":
+                playBgm("assets/sounds/bgm/menu.mp3", true);
+                break;
+            case "ROOM_WAIT":
+                playBgm("assets/sounds/bgm/menu.mp3", true);
+                break;
+            case "COMBAT":
+                playBgm("assets/sounds/bgm/fight.mp3", true);
+                break;
+            case "ROUND_OVER":
+                // Handled in roundResult
+                break;
+        }
+    }
+
+    private void playBgm(String path, boolean loop) {
+        if (currentBgmPath != null && currentBgmPath.equals(path)) {
+            return;
+        }
+        stopBgm();
+        try {
+            File file = new File(path);
+            if (!file.exists()) return;
+            
+            Media media = new Media(file.toURI().toString());
+            bgmPlayer = new MediaPlayer(media);
+            bgmPlayer.setCycleCount(loop ? MediaPlayer.INDEFINITE : 1);
+            bgmPlayer.setVolume(0.4);
+            bgmPlayer.play();
+            currentBgmPath = path;
+        } catch (Exception e) {
+            System.err.println("Failed to play BGM: " + path + " - " + e.getMessage());
+        }
+    }
+
+    public void stopBgm() {
+        if (bgmPlayer != null) {
+            bgmPlayer.stop();
+            bgmPlayer = null;
+            currentBgmPath = null;
+        }
+    }
+
+    private void playSfx(String name, double fallbackHz, int fallbackMillis, double fallbackVol) {
+        AudioClip clip = sfx.get(name);
+        if (clip != null) {
+            clip.play();
+        } else {
+            playTone(fallbackHz, fallbackMillis, fallbackVol);
+        }
     }
 
     private void playTone(double hz, int millis, double volume) {
         new Thread(() -> tone(hz, millis, volume), "sound-tone").start();
     }
 
+    private static final float SAMPLE_RATE = 22050f;
     private void tone(double hz, int millis, double volume) {
         try {
-            AudioFormat format = new AudioFormat(SAMPLE_RATE, 8, 1, true, false);
-            try (SourceDataLine line = AudioSystem.getSourceDataLine(format)) {
+            javax.sound.sampled.AudioFormat format = new javax.sound.sampled.AudioFormat(SAMPLE_RATE, 8, 1, true, false);
+            try (javax.sound.sampled.SourceDataLine line = javax.sound.sampled.AudioSystem.getSourceDataLine(format)) {
                 line.open(format);
                 line.start();
                 int samples = (int) (millis * SAMPLE_RATE / 1000.0);
@@ -59,8 +139,6 @@ public class SoundManager {
                 line.write(buffer, 0, buffer.length);
                 line.drain();
             }
-        } catch (Exception ignored) {
-            // Audio is optional for classroom demos; missing devices should not stop the game.
-        }
+        } catch (Exception ignored) {}
     }
 }

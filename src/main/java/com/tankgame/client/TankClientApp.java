@@ -262,6 +262,8 @@ public class TankClientApp extends Application {
     }
 
     private Scene createLobbyScene(Stage stage) {
+        phase = "MENU";
+        sound.updateBgm(phase);
         BorderPane root = new BorderPane();
         root.setPrefSize(WIDTH, HEIGHT);
         root.setStyle("-fx-background-color: #10151b;");
@@ -417,6 +419,7 @@ public class TankClientApp extends Application {
         network = manager;
         paused = false;
         phase = "ROOM_WAIT";
+        sound.updateBgm(phase);
         resetInput();
         clearWorld();
         heardEffectIds.clear();
@@ -727,6 +730,7 @@ public class TankClientApp extends Application {
                 replace(effects, msg.effects);
                 playNewEffectSounds(msg.effects);
                 phase = msg.phase == null ? "COMBAT" : msg.phase;
+                sound.updateBgm(phase);
                 winnerId = msg.winnerId;
                 winnerTeam = msg.winnerTeam;
                 roomCode = msg.roomCode == null ? roomCode : msg.roomCode;
