@@ -6,7 +6,6 @@ Set-Location $root
 $java = Get-ProjectJavaTool "java"
 Assert-Java17OrNewer $java "java"
 $classes = Join-Path $root "target\classes"
-$gson = Join-Path $root "lib\gson-2.11.0.jar"
 $port = if ($env:TANK_PORT) { $env:TANK_PORT } else { "7788" }
 $serverClass = Join-Path $classes "com\tankgame\server\TankServer.class"
 
@@ -18,4 +17,8 @@ if ($env:TANK_REBUILD -eq "1" -or -not (Test-Path -LiteralPath $serverClass)) {
 }
 
 Write-Host "Starting server on port $port..."
-& $java -cp "$classes;$gson" com.tankgame.server.TankServer $port
+$libDir = Join-Path $root "lib"
+$cpArray = @($classes)
+Get-ChildItem -Path $libDir -Filter "*.jar" | ForEach-Object { $cpArray += $_.FullName }
+$cp = $cpArray -join ";"
+& $java -cp $cp com.tankgame.server.TankServer $port

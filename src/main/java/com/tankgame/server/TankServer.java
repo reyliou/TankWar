@@ -38,6 +38,7 @@ public class TankServer {
     private static final int WORLD_H = 700;
     private static final int TICK_MS = 50;
     private static final Gson GSON = new Gson();
+    private static final DatabaseManager DB = new DatabaseManager();
 
     private final Object worldLock = new Object();
     private final Map<String, ClientConnection> clients = new ConcurrentHashMap<>();
@@ -270,6 +271,7 @@ public class TankServer {
                 return;
             }
             player.name = safeName(input.playerName, player.id);
+            player.score = DB.getScore(player.name);
             if (!"ROOM_WAIT".equals(phase)) {
                 return;
             }
@@ -361,7 +363,7 @@ public class TankServer {
             players.clear();
             for (PlayerState human : humans) {
                 PlayerState fresh = createPlayer(human.id, human.name, false, human.color);
-                fresh.score = human.score;
+                fresh.score = DB.getScore(human.name);
                 fresh.team = human.team;
                 fresh.tankType = normalizeTankType(human.tankType);
                 applyTankStats(fresh, false);
@@ -883,6 +885,9 @@ public class TankServer {
                         PlayerState owner = players.get(bullet.ownerId);
                         if (owner != null) {
                             owner.score++;
+                            if (!owner.ai) {
+                                DB.incrementScore(owner.name);
+                            }
                         }
                     }
                     iterator.remove();

@@ -8,11 +8,9 @@ Assert-Java17OrNewer $javac "javac"
 $classes = Join-Path $root "target\classes"
 $lib = Join-Path $root "lib"
 
-$gson = Join-Path $lib "gson-2.11.0.jar"
-$javafxBase = Join-Path $lib "javafx-base-21.0.2-win.jar"
-$javafxControls = Join-Path $lib "javafx-controls-21.0.2-win.jar"
-$javafxGraphics = Join-Path $lib "javafx-graphics-21.0.2-win.jar"
-$javafxMedia = Join-Path $lib "javafx-media-21.0.2-win.jar"
+$cpArray = @()
+Get-ChildItem -Path $lib -Filter "*.jar" | ForEach-Object { $cpArray += "lib/$($_.Name)" }
+$cp = $cpArray -join ";"
 
 New-Item -ItemType Directory -Force -Path $classes | Out-Null
 
@@ -24,7 +22,6 @@ $sources = Get-ChildItem -Path (Join-Path $root "src\main\java") -Recurse -Filte
 
 $argsFile = Join-Path $root "target\javac.args"
 $classesArg = "target/classes"
-$gsonArg = "lib/gson-2.11.0.jar"
 $modulePathArg = "lib/javafx-base-21.0.2-win.jar;lib/javafx-controls-21.0.2-win.jar;lib/javafx-graphics-21.0.2-win.jar;lib/javafx-media-21.0.2-win.jar"
 $javacArgs = @(
     "-encoding"
@@ -32,14 +29,14 @@ $javacArgs = @(
     "--release"
     "17"
     "-cp"
-    "`"$gsonArg`""
+    $cp
     "--module-path"
-    "`"$modulePathArg`""
+    $modulePathArg
     "--add-modules"
     "javafx.controls,javafx.media"
     "-d"
-    "`"$classesArg`""
-) + ($sources | ForEach-Object { "`"$_`"" })
+    $classesArg
+) + ($sources | ForEach-Object { $_ })
 
 Set-Content -Path $argsFile -Value $javacArgs -Encoding ASCII
 
